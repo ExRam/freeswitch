@@ -182,21 +182,33 @@ SWITCH_DECLARE(cJSON *) switch_log_node_to_json(const switch_log_node_t *node, i
 	}
 
 	/* get fields from channel data, if configured */
-	if (!zstr(node->userdata) && chan_vars && chan_vars->headers && (session = switch_core_session_locate(node->userdata))) {
+	if (!zstr(node->userdata) && (session = switch_core_session_locate(node->userdata))) {
 		switch_channel_t *channel = switch_core_session_get_channel(session);
 		switch_event_header_t *hp;
-		/* session_fields name mapped to variable name */
-		for (hp = chan_vars->headers; hp; hp = hp->next) {
-			if (!zstr(hp->name) && !zstr(hp->value)) {
-				const char *val = switch_channel_get_variable(channel, hp->value);
-				if (!zstr(val)) {
-					if (!log_fields) {
-						switch_event_create_plain(&log_fields, SWITCH_EVENT_CHANNEL_DATA);
+
+		if (channel)
+		{
+			const char *val = switch_channel_get_variable(channel, "traceparent");
+
+			if (!zstr(val))
+				cJSON_AddItemToObject(json, "traceparent", cJSON_CreateString(val));
+		}
+
+		if (chan_vars && chan_vars->headers) {
+			/* session_fields name mapped to variable name */
+			for (hp = chan_vars->headers; hp; hp = hp->next) {
+				if (!zstr(hp->name) && !zstr(hp->value)) {
+					const char *val = switch_channel_get_variable(channel, hp->value);
+					if (!zstr(val)) {
+						if (!log_fields) {
+							switch_event_create_plain(&log_fields, SWITCH_EVENT_CHANNEL_DATA);
+						}
+						switch_event_add_header_string(log_fields, SWITCH_STACK_BOTTOM, hp->name, val);
 					}
-					switch_event_add_header_string(log_fields, SWITCH_STACK_BOTTOM, hp->name, val);
 				}
 			}
 		}
+
 		switch_core_session_rwunlock(session);
 	}
 
